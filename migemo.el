@@ -397,12 +397,23 @@ into the migemo's regexp pattern."
       (delete-region (point) pos)
       (insert jrpat))))
 
+(defvar migemo-syntax-table
+  (let ((table (make-syntax-table)))
+    (with-syntax-table table
+      (modify-syntax-entry ?\s " ")
+      (modify-syntax-entry ?\t " ")
+      (modify-syntax-entry ?\r " ")
+      (modify-syntax-entry ?\n " ")
+      (modify-syntax-entry ?\u3000 " "))
+    table))
+
 (defun migemo-forward (word &optional bound noerror count)
   (interactive "sSearch: \nP\nP")
   (if (delq 'ascii (find-charset-string word))
       (setq migemo-search-pattern word)
     (setq migemo-search-pattern (migemo-search-pattern-get word)))
-  (search-forward-regexp migemo-search-pattern bound noerror count))
+  (with-syntax-table migemo-syntax-table
+    (search-forward-regexp migemo-search-pattern bound noerror count)))
 
 (defun migemo-backward (word &optional bound noerror count)
   (interactive "sSearch backward: \nP\nP")
@@ -410,7 +421,8 @@ into the migemo's regexp pattern."
       (setq migemo-search-pattern word)
     (setq migemo-search-pattern (migemo-search-pattern-get word)))
   (if (null migemo-do-isearch)
-      (search-backward-regexp migemo-search-pattern bound noerror count)
+      (with-syntax-table migemo-syntax-table
+        (search-backward-regexp migemo-search-pattern bound noerror count))
     (or (and (not (eq this-command 'isearch-repeat-backward))
 	     (not (get-char-property (point) 'invisible (current-buffer)))
 	     (or (and (looking-at migemo-search-pattern)
@@ -419,7 +431,8 @@ into the migemo's regexp pattern."
 		      (progn (forward-char -1)
 			     (and (looking-at migemo-search-pattern)
 				  (match-beginning 0))))))
-	(search-backward-regexp migemo-search-pattern bound noerror count))))
+        (with-syntax-table migemo-syntax-table
+          (search-backward-regexp migemo-search-pattern bound noerror count)))))
 
 ;; experimental
 ;; (define-key global-map "\M-;" 'migemo-dabbrev-expand)
@@ -668,17 +681,18 @@ This function used with Megemo feature."
 	(pattern isearch-string))
     (when (nth 2 choices)
      (setq pattern (migemo-search-pattern-get isearch-string)))
-    (funcall (if isearch-forward
-		 (nth 0 choices) (nth 1 choices))
-	     pattern
-             (if isearch-forward
+    (with-syntax-table migemo-syntax-table
+      (funcall (if isearch-forward
+                   (nth 0 choices) (nth 1 choices))
+               pattern
+               (if isearch-forward
+                   (if isearch-lazy-highlight-wrapped
+                       isearch-lazy-highlight-start
+                     (window-end))
                  (if isearch-lazy-highlight-wrapped
-                     isearch-lazy-highlight-start
-                   (window-end))
-               (if isearch-lazy-highlight-wrapped
-                   isearch-lazy-highlight-end
-                 (window-start)))
-             t)))
+                     isearch-lazy-highlight-end
+                   (window-start)))
+               t))))
 
 (when (fboundp 'isearch-lazy-highlight-search)
   (defalias 'isearch-lazy-highlight-search 'migemo-isearch-lazy-highlight-search))
